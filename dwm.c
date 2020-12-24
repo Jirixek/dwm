@@ -119,6 +119,7 @@ struct Client {
 	Monitor *mon;
 	Window win;
 	XkbInfo *xkb;
+	int mouse_multiplier;
 };
 struct XkbInfo {
 	XkbInfo *next;
@@ -170,6 +171,7 @@ typedef struct {
 	int isfloating;
 	int monitor;
 	int xkb_layout;
+	int mouse_multiplier;
 } Rule;
 
 typedef struct Systray   Systray;
@@ -185,6 +187,7 @@ static void arrange(Monitor *m);
 static void arrangemon(Monitor *m);
 static void attach(Client *c);
 static void attachstack(Client *c);
+static void apply_mouse_multiplier(int multiplier);
 static void buttonpress(XEvent *e);
 static void checkotherwm(void);
 static void cleanup(void);
@@ -353,6 +356,7 @@ applyrules(Client *c)
 	/* rule matching */
 	c->isfloating = 0;
 	c->tags = 0;
+	c->mouse_multiplier = 1;
 	XGetClassHint(dpy, c->win, &ch);
 	class    = ch.res_class ? ch.res_class : broken;
 	instance = ch.res_name  ? ch.res_name  : broken;
@@ -365,6 +369,7 @@ applyrules(Client *c)
 		{
 			c->isfloating = r->isfloating;
 			c->tags |= r->tags;
+			c->mouse_multiplier = r->mouse_multiplier;
 			for (m = mons; m && m->num != r->monitor; m = m->next);
 			if (m)
 				c->mon = m;
@@ -486,6 +491,14 @@ attachstack(Client *c)
 {
 	c->snext = c->mon->stack;
 	c->mon->stack = c;
+}
+
+void
+apply_mouse_multiplier(int multiplier)
+{
+	FILE * f = fopen("/tmp/libinput_discrete_deltay_multiplier", "w");
+	fprintf(f, "%d", multiplier);
+	fclose(f);
 }
 
 void
@@ -1780,6 +1793,7 @@ setfocus(Client *c)
 			XA_WINDOW, 32, PropModeReplace,
 			(unsigned char *) &(c->win), 1);
 		XkbLockGroup(dpy, XkbUseCoreKbd, c->xkb->group);
+		apply_mouse_multiplier(c->mouse_multiplier);
 	}
 	sendevent(c->win, wmatom[WMTakeFocus], NoEventMask, wmatom[WMTakeFocus], CurrentTime, 0, 0, 0);
 }

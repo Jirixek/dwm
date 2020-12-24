@@ -30,9 +30,9 @@ static const Rule rules[] = {
 	 *	WM_CLASS(STRING) = instance, class
 	 *	WM_NAME(STRING) = title
 	 */
-	/* class      instance    title       tags mask     isfloating   monitor xkb_layout */
-	{ "Gimp",     NULL,       NULL,       0,            True,        -1,     0 },
-	{ "Firefox",  NULL,       NULL,       1 << 8,       False,       -1,     -1 },
+	/* class      instance    title       tags mask     isfloating   monitor xkb_layout  mouse_multiplier*/
+	{ "Gimp",     NULL,       NULL,       0,            True,        -1,     0,          1 },
+	{ "Firefox",  NULL,       NULL,       1 << 8,       False,       -1,     -1,         1 },
 };
 
 /* layout(s) */
