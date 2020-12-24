@@ -820,27 +820,42 @@ createxkb(Window w){
 
 void
 deck(Monitor *m) {
-	unsigned int i, n, h, mw, my;
+	unsigned int i, n, h, mw, my, bw;
 	Client *c;
+	float mfacts = 0;
 
-	for(n = 0, c = nexttiled(m->clients); c; c = nexttiled(c->next), n++);
-	if(n == 0)
+	for (n = 0, c = nexttiled(m->clients); c && n < m->nmaster; c = nexttiled(c->next), n++)
+		mfacts += c->cfact;
+
+	for (n = 0, c = nexttiled(m->clients); c; c = nexttiled(c->next), n++);
+	if (n == 0)
 		return;
-
-	if(n > m->nmaster) {
-		mw = m->nmaster ? m->ww * m->mfact : 0;
-		snprintf(m->ltsymbol, sizeof m->ltsymbol, "[%d]", n - m->nmaster);
-	}
+	else if (n == 1)
+		bw = 0;
 	else
+		bw = borderpx;
+
+	if (n > m->nmaster) {
+		mw = m->nmaster ? m->ww * m->mfact : 0;
+		snprintf(m->ltsymbol, sizeof(m->ltsymbol), "[%d]", n - m->nmaster);
+	} else
 		mw = m->ww;
-	for(i = my = 0, c = nexttiled(m->clients); c; c = nexttiled(c->next), i++)
-		if(i < m->nmaster) {
-			h = (m->wh - my) / (MIN(n, m->nmaster) - i);
-			resize(c, m->wx, m->wy + my, mw - (2*c->bw), h - (2*c->bw), c->bw, False);
-			my += HEIGHT(c);
+
+	for (i = my = 0, c = nexttiled(m->clients); c; c = nexttiled(c->next), i++)
+		if (i < m->nmaster) {
+			h = (m->wh - my) * (c->cfact / mfacts);
+			if (i == m->nmaster - 1)
+				resize(c, m->wx, m->wy + my, mw - 2 * bw, h - 2 * bw, bw, False);
+			else
+				resize(c, m->wx, m->wy + my, mw - 2 * bw, h - bw, bw, False);
+			my += c->h + bw;
+			mfacts -= c->cfact;
+		} else {
+			if (m->nmaster == 0)
+				resize(c, m->wx, m->wy, m->ww, m->wh, 0, False);
+			else
+				resize(c, m->wx + mw - bw, m->wy, m->ww - mw - bw, m->wh - 2 * bw, bw, False);
 		}
-		else
-			resize(c, m->wx + mw, m->wy, m->ww - mw - (2*c->bw), m->wh - (2*c->bw), c->bw, False);
 }
 
 void
@@ -2027,32 +2042,34 @@ tile(Monitor *m)
 		else
 			sfacts += c->cfact;
 	}
+
 	if (n == 0)
 		return;
-
-	if (n == 1)
+	else if (n == 1)
 		bw = 0;
 	else
 		bw = borderpx;
+
 	if (n > m->nmaster)
-		mw = m->nmaster ? m->ww * m->mfact : 0;
+		mw = m->nmaster ? m->ww * m->mfact : bw;
 	else
 		mw = m->ww;
 	for (i = my = ty = 0, c = nexttiled(m->clients); c; c = nexttiled(c->next), i++)
 		if (i < m->nmaster) {
 			h = (m->wh - my) * (c->cfact / mfacts);
-			if (n == 1)
-				resize(c, m->wx, m->wy, m->ww - (2*c->bw), m->wh - (2*c->bw), 0, 0);
+			if (i == m->nmaster - 1)
+				resize(c, m->wx, m->wy + my, mw - 2 * bw, h - 2 * bw, bw, False);
 			else
-				resize(c, m->wx, m->wy + my, mw - c->bw, h - 2*c->bw, bw, 0);
-			if (my + HEIGHT(c) < m->wh)
-				my += HEIGHT(c) - c->bw;
+				resize(c, m->wx, m->wy + my, mw - 2 * bw, h - bw, bw, False);
+			my += c->h + bw;
 			mfacts -= c->cfact;
 		} else {
 			h = (m->wh - ty) * (c->cfact / sfacts);
-			resize(c, m->wx + mw, m->wy + ty, m->ww - mw - 2*c->bw, h - 2*c->bw, bw, 0);
-			if (ty + HEIGHT(c) < m->wh)
-				ty += HEIGHT(c) - c->bw;
+			if (i == n - 1)
+				resize(c, m->wx + mw - bw, m->wy + ty, m->ww - mw - bw, h - 2 * bw, bw, False);
+			else
+				resize(c, m->wx + mw - bw, m->wy + ty, m->ww - mw - bw, h - bw, bw, False);
+			ty += c->h + bw;
 			sfacts -= c->cfact;
 		}
 }
