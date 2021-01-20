@@ -103,7 +103,6 @@ typedef struct {
 
 typedef struct Monitor Monitor;
 typedef struct Client Client;
-typedef struct XkbInfo XkbInfo;
 struct Client {
 	char name[256];
 	float mina, maxa;
@@ -118,14 +117,8 @@ struct Client {
 	Client *snext;
 	Monitor *mon;
 	Window win;
-	XkbInfo *xkb;
+	int xkb_group;
 	int mouse_multiplier;
-};
-struct XkbInfo {
-	XkbInfo *next;
-	XkbInfo *prev;
-	int group;
-	Window w;
 };
 
 typedef struct {
@@ -198,7 +191,6 @@ static void configure(Client *c);
 static void configurenotify(XEvent *e);
 static void configurerequest(XEvent *e);
 static Monitor *createmon(void);
-static XkbInfo *createxkb(Window w);
 static void deck(Monitor *m);
 static void destroynotify(XEvent *e);
 static void detach(Client *c);
@@ -207,7 +199,6 @@ static Monitor *dirtomon(int dir);
 static void drawbar(Monitor *m);
 static void drawbars(void);
 static void expose(XEvent *e);
-static XkbInfo *findxkb(Window w);
 static void focus(Client *c);
 static void focusin(XEvent *e);
 static void focusmon(const Arg *arg);
@@ -325,8 +316,7 @@ static Display *dpy;
 static Drw *drw;
 static Monitor *mons, *selmon;
 static Window root, wmcheckwin;
-static XkbInfo xkbGlobal;
-static XkbInfo *xkbSaved = NULL;
+static int xkb_current_group;
 
 /* configuration, allows nested code to access above variables */
 #include "config.h"
@@ -374,7 +364,7 @@ applyrules(Client *c)
 			if (m)
 				c->mon = m;
 			if (r->xkb_layout > -1)
-				c->xkb->group = r->xkb_layout;
+				c->xkb_group = r->xkb_layout;
 		}
 	}
 	if (ch.res_class)
@@ -813,25 +803,6 @@ createmon(void)
 
 	return m;
 }
-static XkbInfo *
-createxkb(Window w){
-    XkbInfo *xkb;
-
-    xkb = malloc(sizeof *xkb);
-    if (xkb == NULL) {
-        die("fatal: could not malloc() %u bytes\n", sizeof *xkb);
-    }
-    xkb->group = xkbGlobal.group;
-    xkb->w = w;
-    xkb->next = xkbSaved;
-    if (xkbSaved != NULL) {
-        xkbSaved->prev = xkb;
-    }
-    xkb->prev = NULL;
-    xkbSaved = xkb;
-
-    return xkb;
-}
 
 void
 deck(Monitor *m) {
@@ -987,18 +958,6 @@ drawbars(void)
 
 	for (m = mons; m; m = m->next)
 		drawbar(m);
-}
-
-XkbInfo *
-findxkb(Window w)
-{
-	XkbInfo *xkb;
-	for (xkb = xkbSaved; xkb != NULL; xkb=xkb->next) {
-		if (xkb->w == w) {
-			return xkb;
-		}
-	}
-	return NULL;
 }
 
 void
@@ -1278,7 +1237,6 @@ manage(Window w, XWindowAttributes *wa)
 	Client *c, *t = NULL;
 	Window trans = None;
 	XWindowChanges wc;
-	XkbInfo *xkb;
 
 	c = ecalloc(1, sizeof(Client));
 	c->win = w;
@@ -1294,11 +1252,7 @@ manage(Window w, XWindowAttributes *wa)
 
 
 	/* Setting current xkb state must be before applyrules */
-	xkb = findxkb(c->win);
-	if (xkb == NULL) {
-		xkb = createxkb(c->win);
-	}
-	c->xkb = xkb;
+	c->xkb_group = xkb_current_group;
 
 	if (XGetTransientForHint(dpy, w, &trans) && (t = wintoclient(trans))) {
 		c->mon = t->mon;
@@ -1802,7 +1756,7 @@ setfocus(Client *c)
 		XChangeProperty(dpy, root, netatom[NetActiveWindow],
 			XA_WINDOW, 32, PropModeReplace,
 			(unsigned char *) &(c->win), 1);
-		XkbLockGroup(dpy, XkbUseCoreKbd, c->xkb->group);
+		XkbLockGroup(dpy, XkbUseCoreKbd, c->xkb_group);
 		apply_mouse_multiplier(c->mouse_multiplier);
 	}
 	sendevent(c->win, wmatom[WMTakeFocus], NoEventMask, wmatom[WMTakeFocus], CurrentTime, 0, 0, 0);
@@ -1964,7 +1918,7 @@ setup(void)
     XkbSelectEventDetails(dpy, XkbUseCoreKbd, XkbStateNotify,
                           XkbAllStateComponentsMask, XkbGroupStateMask);
     XkbGetState(dpy, XkbUseCoreKbd, &xkbstate);
-    xkbGlobal.group = xkbstate.locked_group;
+    xkb_current_group = xkbstate.locked_group;
 
 	grabkeys();
 	focus(NULL);
@@ -2194,7 +2148,6 @@ unmanage(Client *c, int destroyed)
 {
 	Monitor *m = c->mon;
 	XWindowChanges wc;
-    XkbInfo *xkb;
 
 	detach(c);
 	detachstack(c);
@@ -2209,18 +2162,6 @@ unmanage(Client *c, int destroyed)
 		XSetErrorHandler(xerror);
 		XUngrabServer(dpy);
 	}
-    else {
-        xkb = findxkb(c->win);
-        if (xkb != NULL) {
-            if (xkb->prev) {
-                xkb->prev->next = xkb->next;
-            }
-            if (xkb->next) {
-                xkb->next->prev = xkb->prev;
-            }
-            free(xkb);
-        }
-    }
 	free(c);
 	focus(NULL);
 	updateclientlist();
@@ -2569,9 +2510,9 @@ void xkbeventnotify(XEvent *e)
     ev = (XkbEvent *) e;
     switch (ev->any.xkb_type) {
     case XkbStateNotify:
-        xkbGlobal.group = ev->state.locked_group;
+        xkb_current_group = ev->state.locked_group;
         if (selmon != NULL && selmon->sel != NULL) {
-            selmon->sel->xkb->group = xkbGlobal.group;
+            selmon->sel->xkb_group = xkb_current_group;
         }
         break;
     }
