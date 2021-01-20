@@ -35,12 +35,11 @@ static const Rule rules[] = {
 	 */
 	/* class                  instance    title   tags mask     isfloating   monitor xkb_layout   mouse_multiplier*/
 	{ "firefox",              NULL,       NULL,   1 << 1,       0,           -1,     -1,          3 },
-	{ "chromium",             NULL,       NULL,   0,            0,           -1,     -1,          3 },
+	{ "Chromium",             NULL,       NULL,   1 << 2,       0,           -1,     -1,          3 },
 	{ "Anki",                 NULL,       NULL,   1 << 3,       0,           -1,     -1,          1 },
 	{ "Spotify" ,             NULL,       NULL,   1 << 4,       0,           -1,     -1,          3 },
 	{ "Thunderbird",          NULL,       NULL,   1 << 5,       0,           -1,     -1,          1 },
-	{ "slock",                NULL,       NULL,   0,            0,           -1,     0,           1 },
-	{ "dragon-drag-and-drop", NULL,       NULL,   ~0,           1,           -1,     -1,          1 },
+	{ "Dragon-drag-and-drop", NULL,       NULL,   ~0,           1,           -1,     -1,          1 },
 };
 
 /* layout(s) */
